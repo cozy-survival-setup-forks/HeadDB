@@ -50,6 +50,7 @@ public final class GuiConfigLoader {
 
             boolean changed = normalizeLoreValues(current);
             changed |= mergeMissing(current, defaults);
+            changed |= migrateCategoryIcons(current);
 
             GuiConfig config = GuiConfig.fromMap(current);
             config.validate();
@@ -105,6 +106,46 @@ public final class GuiConfigLoader {
                     target.put(key, current);
                     changed = true;
                 }
+            }
+        }
+
+        return changed;
+    }
+
+    // Older files hold "<gold>Category" as the name (and a note as the lore) on the shared category icon, and the
+    // editor copied both onto every category icon it touched, so those categories were shown as "Category".
+    private static final String LEGACY_CATEGORY_NAME = "<gold>Category";
+    private static final String LEGACY_CATEGORY_LORE = "<gray>Default category button icon settings.";
+
+    @SuppressWarnings("unchecked")
+    static boolean migrateCategoryIcons(@NotNull Map<String, Object> root) {
+        if (!(root.get("icons") instanceof Map<?, ?> rawIcons)) {
+            return false;
+        }
+
+        boolean changed = false;
+
+        for (Map.Entry<?, ?> entry : ((Map<Object, Object>) rawIcons).entrySet()) {
+            String key = String.valueOf(entry.getKey());
+
+            if (!key.equals("category") && !key.startsWith("category.")) {
+                continue;
+            }
+
+            if (!(entry.getValue() instanceof Map<?, ?> rawIcon)) {
+                continue;
+            }
+
+            Map<Object, Object> icon = (Map<Object, Object>) rawIcon;
+
+            if (LEGACY_CATEGORY_NAME.equals(icon.get("name"))) {
+                icon.put("name", "<gold>%name%");
+                changed = true;
+            }
+
+            if (icon.get("lore") instanceof List<?> lore && lore.size() == 1 && LEGACY_CATEGORY_LORE.equals(lore.get(0))) {
+                icon.put("lore", new ArrayList<String>());
+                changed = true;
             }
         }
 

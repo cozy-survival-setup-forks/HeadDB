@@ -39,6 +39,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
@@ -68,7 +69,7 @@ public final class HeadEditListener implements Listener {
             return;
         }
 
-        InventoryHolder holder = event.getInventory().getHolder();
+        InventoryHolder holder = event.getInventory().getHolder(false);
         if (holder == null) {
             return;
         }
@@ -202,7 +203,7 @@ public final class HeadEditListener implements Listener {
         }
 
         Optional<HeadId> clickedHeadId = io.github.silentdevelopment.headdb.paper.item.HeadItemIds.read(plugin, item);
-        if (clickedHeadId.isPresent() && (event.getClick() == ClickType.RIGHT || event.getClick() == ClickType.SHIFT_RIGHT)) {
+        if (clickedHeadId.isPresent() && (event.getClick() == ClickType.RIGHT || event.getClick() == ClickType.SHIFT_RIGHT) && isHeadMenuClick(event)) {
             deny(event);
             FavoriteClickGuard.mark(player, clickedHeadId.get());
             toggleFavorite(player, clickedHeadId.get());
@@ -217,9 +218,20 @@ public final class HeadEditListener implements Listener {
             return;
         }
 
-        if (event.getView().getTopInventory().getHolder() instanceof HeadEditMenu.EditHolder) {
+        if (event.getView().getTopInventory().getHolder(false) instanceof HeadEditMenu.EditHolder) {
             deny(event);
         }
+    }
+
+    // Favourite toggling is only for heads listed in a HeadDB menu, not for HeadDB heads sitting in a chest or a player inventory.
+    private static boolean isHeadMenuClick(@NotNull InventoryClickEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (event.getClickedInventory() == null || !event.getClickedInventory().equals(top)) {
+            return false;
+        }
+
+        InventoryHolder holder = top.getHolder(false);
+        return holder == null || holder.getClass().getName().startsWith("io.github.silentdevelopment.headdb.");
     }
 
     private boolean handleAdvancedSearchClick(@NotNull Player player, @NotNull InventoryClickEvent event) {
@@ -323,7 +335,7 @@ public final class HeadEditListener implements Listener {
     private void handleAction(@NotNull Player player, @NotNull InventoryClickEvent event, @NotNull HeadEditMenu.ActionTarget target) {
         String action = target.action();
         HeadId id = target.id();
-        HeadEditMenu.EditHolder holder = event.getView().getTopInventory().getHolder() instanceof HeadEditMenu.EditHolder editHolder ? editHolder : null;
+        HeadEditMenu.EditHolder holder = event.getView().getTopInventory().getHolder(false) instanceof HeadEditMenu.EditHolder editHolder ? editHolder : null;
 
         if (action.equals(HeadEditMenu.ACTION_PREVIEW)) {
             return;

@@ -2,7 +2,6 @@ package io.github.silentdevelopment.headdb.paper.gui;
 
 import io.github.silentdevelopment.grafik.gui.dynamic.DynamicGui;
 import io.github.silentdevelopment.grafik.paper.PaperGrafik;
-import io.github.silentdevelopment.grafik.paper.core.PaperGrafiks;
 import io.github.silentdevelopment.headdb.paper.HeadDBPlugin;
 import io.github.silentdevelopment.headdb.paper.gui.main.MainMenu;
 import io.github.silentdevelopment.headdb.paper.gui.category.BrowseMenu;
@@ -38,7 +37,7 @@ public final class GuiService {
         Objects.requireNonNull(itemFactory, "itemFactory");
 
         this.searchResultCache = new SearchResultCache();
-        this.grafik = PaperGrafiks.create(plugin);
+        this.grafik = plugin.grafik();
         this.mainGui = grafik.prepare(new MainMenu(plugin));
         this.searchGui = grafik.prepare(new SearchMenu(plugin, itemFactory, searchResultCache));
         this.advancedSearchGui = grafik.prepare(SearchMenu.advanced(plugin, itemFactory, searchResultCache));

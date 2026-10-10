@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public final class DefaultHeadDatabase implements HeadDatabase {
 
@@ -61,6 +62,14 @@ public final class DefaultHeadDatabase implements HeadDatabase {
         Objects.requireNonNull(snapshot, "snapshot");
         this.snapshot.set(snapshot);
         this.status.set(snapshot.status());
+    }
+
+    /**
+     * The loaded data as one consistent unit, or null before anything is loaded. Readers that need heads, categories,
+     * tags and collections together should take this once instead of calling each accessor on its own.
+     */
+    public @Nullable DatabaseSnapshot currentSnapshot() {
+        return snapshot.get();
     }
 
     @Override

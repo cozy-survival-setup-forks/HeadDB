@@ -12,7 +12,10 @@ import io.github.silentdevelopment.headdb.paper.gui.category.CustomCategoryServi
 import io.github.silentdevelopment.headdb.paper.gui.edit.HeadEditListener;
 import io.github.silentdevelopment.headdb.paper.gui.favorites.FavoriteHeadService;
 import io.github.silentdevelopment.headdb.paper.gui.config.GuiConfigLoader;
+import io.github.silentdevelopment.grafik.paper.PaperGrafik;
+import io.github.silentdevelopment.grafik.paper.core.PaperGrafiks;
 import io.github.silentdevelopment.headdb.paper.gui.GuiService;
+import io.github.silentdevelopment.headdb.paper.gui.common.SafePageRenderer;
 import io.github.silentdevelopment.headdb.paper.gui.admin.AdminModeService;
 import io.github.silentdevelopment.headdb.paper.item.CachingHeadItemFactory;
 import io.github.silentdevelopment.headdb.paper.item.DefaultHeadItemFactory;
@@ -61,6 +64,7 @@ public final class HeadDBPlugin extends JavaPlugin {
     private Messages messages;
     private HeadItemFactory itemFactory;
     private GuiService guiService;
+    private PaperGrafik grafik;
     private HeadRegistry headRegistry;
     private PromptInputService promptInputService;
     private final AdminModeService adminModes = new AdminModeService();
@@ -136,6 +140,7 @@ public final class HeadDBPlugin extends JavaPlugin {
         guiConfig = null;
         messages = null;
         guiService = null;
+        grafik = null;
         itemFactory = null;
         headRegistry = null;
         promptInputService = null;
@@ -239,6 +244,15 @@ public final class HeadDBPlugin extends JavaPlugin {
         }
 
         return currentItemFactory;
+    }
+
+    // One Grafik (and so one inventory listener) for the life of the plugin; a reload only prepares new guis on it.
+    public synchronized @NotNull PaperGrafik grafik() {
+        if (grafik == null) {
+            grafik = PaperGrafiks.builder(this).renderer(new SafePageRenderer(getSLF4JLogger())).build();
+        }
+
+        return grafik;
     }
 
     public @NotNull GuiService guis() {

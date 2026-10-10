@@ -149,7 +149,108 @@ public final class GuiItems {
 
     public static @NotNull Component mini(@NotNull String value) {
         Objects.requireNonNull(value, "value");
-        return MINI_MESSAGE.deserialize(value).decoration(TextDecoration.ITALIC, false);
+        return MINI_MESSAGE.deserialize(legacyToMini(value)).decoration(TextDecoration.ITALIC, false);
+    }
+
+    /**
+     * Lets the old &amp;-codes work next to MiniMessage tags: "&amp;6Animals" and "&amp;#ff8800Animals" are turned into
+     * their tag form. A "&amp;" that sits inside a word ("R&amp;B") or is not followed by a code is left alone.
+     */
+    static @NotNull String legacyToMini(@NotNull String value) {
+        if (value.indexOf('&') < 0) {
+            return value;
+        }
+
+        StringBuilder out = new StringBuilder(value.length() + 16);
+        int afterCode = -1;
+
+        for (int index = 0; index < value.length(); index++) {
+            char c = value.charAt(index);
+            if (c != '&' || index + 1 >= value.length()) {
+                out.append(c);
+                continue;
+            }
+
+            char code = Character.toLowerCase(value.charAt(index + 1));
+
+            // "R&B" is a word, "Animals&r" is a reset: inside a word only a format code at the end of it counts
+            boolean insideWord = index > 0 && index != afterCode && Character.isLetterOrDigit(value.charAt(index - 1));
+
+            if (insideWord && !(isFormat(code) && endsWord(value, index + 2))) {
+                out.append(c);
+                continue;
+            }
+
+            if (code == '#' && isHex(value, index + 2, 6)) {
+                out.append("<#").append(value, index + 2, index + 8).append('>');
+                index += 7;
+                afterCode = index + 1;
+                continue;
+            }
+
+            String tag = legacyTag(code);
+
+            if (tag == null) {
+                out.append(c);
+                continue;
+            }
+
+            out.append(tag);
+            index++;
+            afterCode = index + 1;
+        }
+
+        return out.toString();
+    }
+
+    private static boolean isFormat(char code) {
+        return code == 'r' || (code >= 'k' && code <= 'o');
+    }
+
+    private static boolean endsWord(@NotNull String value, int index) {
+        return index >= value.length() || value.charAt(index) == '&' || Character.isWhitespace(value.charAt(index));
+    }
+
+    private static boolean isHex(@NotNull String value, int from, int length) {
+        if (from + length > value.length()) {
+            return false;
+        }
+
+        for (int index = from; index < from + length; index++) {
+            if (Character.digit(value.charAt(index), 16) < 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static String legacyTag(char code) {
+        return switch (code) {
+            case '0' -> "<black>";
+            case '1' -> "<dark_blue>";
+            case '2' -> "<dark_green>";
+            case '3' -> "<dark_aqua>";
+            case '4' -> "<dark_red>";
+            case '5' -> "<dark_purple>";
+            case '6' -> "<gold>";
+            case '7' -> "<gray>";
+            case '8' -> "<dark_gray>";
+            case '9' -> "<blue>";
+            case 'a' -> "<green>";
+            case 'b' -> "<aqua>";
+            case 'c' -> "<red>";
+            case 'd' -> "<light_purple>";
+            case 'e' -> "<yellow>";
+            case 'f' -> "<white>";
+            case 'k' -> "<obfuscated>";
+            case 'l' -> "<bold>";
+            case 'm' -> "<strikethrough>";
+            case 'n' -> "<underlined>";
+            case 'o' -> "<italic>";
+            case 'r' -> "<reset>";
+            default -> null;
+        };
     }
 
 

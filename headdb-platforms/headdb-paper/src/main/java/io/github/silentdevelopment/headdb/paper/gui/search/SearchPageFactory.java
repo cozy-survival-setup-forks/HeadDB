@@ -15,6 +15,7 @@ import io.github.silentdevelopment.headdb.model.HeadId;
 import io.github.silentdevelopment.headdb.paper.HeadDBPlugin;
 import io.github.silentdevelopment.headdb.paper.gui.common.GuiHeadIcons;
 import io.github.silentdevelopment.headdb.paper.gui.common.GuiItems;
+import io.github.silentdevelopment.headdb.paper.gui.common.CategoryNames;
 import io.github.silentdevelopment.headdb.paper.gui.common.GuiTitles;
 import io.github.silentdevelopment.headdb.paper.gui.edit.HeadEditDropGuard;
 import io.github.silentdevelopment.headdb.paper.gui.favorites.FavoriteClickGuard;
@@ -331,7 +332,7 @@ public final class SearchPageFactory implements PaperPageFactory<SearchMenuState
         Objects.requireNonNull(result, "result");
 
         boolean adminMode = viewer != null && plugin.adminModes().enabled(viewer);
-        return GuiTitles.title(resultTitle(request) + " " + currentPage + "/" + Math.max(1, result.totalPages()), adminMode);
+        return GuiTitles.title(GuiTitles.escape(resultTitle(request)) + " " + currentPage + "/" + Math.max(1, result.totalPages()), adminMode);
     }
 
     private @NotNull String resultTitle(@NotNull SearchRequest request) {
@@ -353,6 +354,10 @@ public final class SearchPageFactory implements PaperPageFactory<SearchMenuState
             return collectionName(request.collections().iterator().next());
         }
 
+        if (request.categories().size() == 1 && request.ids().isEmpty() && request.tags().isEmpty() && request.collections().isEmpty()) {
+            return categoryName(request.categories().iterator().next());
+        }
+
         if (request.hasFilters()) {
             return "Filtered Heads";
         }
@@ -363,7 +368,7 @@ public final class SearchPageFactory implements PaperPageFactory<SearchMenuState
     private @NotNull String categoryName(@NotNull String categoryId) {
         Objects.requireNonNull(categoryId, "categoryId");
 
-        return plugin.headRegistry().categories().stream().filter(category -> category.id().equalsIgnoreCase(categoryId)).map(HeadCategory::name).findFirst().orElse(categoryId);
+        return plugin.customCategories().find(categoryId).map(category -> category.name()).orElseGet(() -> CategoryNames.plain(plugin, categoryId));
     }
 
     private @NotNull String collectionName(@NotNull String collectionId) {

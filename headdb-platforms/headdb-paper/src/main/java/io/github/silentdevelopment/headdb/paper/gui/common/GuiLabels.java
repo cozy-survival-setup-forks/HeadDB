@@ -53,11 +53,13 @@ public final class GuiLabels {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(category, "category");
 
+        String name = CategoryNames.plain(plugin, category);
+
         if (adminLabel(plugin, player)) {
-            return category.name() + " (" + category.id() + ")";
+            return name + " (" + category.id() + ")";
         }
 
-        return category.name();
+        return name;
     }
 
     public static @NotNull String category(@NotNull HeadDBPlugin plugin, @NotNull Player player, @NotNull CustomCategory category) {

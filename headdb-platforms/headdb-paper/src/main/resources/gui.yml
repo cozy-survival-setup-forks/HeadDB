@@ -431,9 +431,8 @@ icons:
     type: ITEM
     head-id: ''
     material: PLAYER_HEAD
-    name: <gold>Category
-    lore:
-    - <gray>Default category button icon settings.
+    name: <gold>%name%
+    lore: []
   category-add:
     type: ITEM
     head-id: ''

@@ -21,7 +21,7 @@ import java.util.Objects;
 
 public final class GitHubReleaseUpdateChecker {
 
-    public static final String REPOSITORY = "SilentDevelopment/HeadDB";
+    public static final String REPOSITORY = "cozy-survival-setup-forks/HeadDB";
 
     private static final int MAX_RELEASES = 50;
 

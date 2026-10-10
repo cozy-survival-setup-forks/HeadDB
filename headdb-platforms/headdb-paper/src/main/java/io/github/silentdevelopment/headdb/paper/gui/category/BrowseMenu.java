@@ -4,6 +4,7 @@ import io.github.silentdevelopment.headdb.model.Head;
 import io.github.silentdevelopment.headdb.model.HeadCategory;
 import io.github.silentdevelopment.headdb.model.HeadId;
 import io.github.silentdevelopment.headdb.paper.HeadDBPlugin;
+import io.github.silentdevelopment.headdb.paper.gui.common.CategoryNames;
 import io.github.silentdevelopment.headdb.paper.gui.common.GuiHeadIcons;
 import io.github.silentdevelopment.headdb.paper.gui.common.GuiItems;
 import io.github.silentdevelopment.headdb.paper.gui.common.GuiMaterials;
@@ -107,7 +108,7 @@ public final class BrowseMenu {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(event, "event");
 
-        if (!(event.getView().getTopInventory().getHolder() instanceof BrowseHolder holder)) {
+        if (!(event.getView().getTopInventory().getHolder(false) instanceof BrowseHolder holder)) {
             return false;
         }
 
@@ -420,8 +421,7 @@ public final class BrowseMenu {
             }
 
             lore.add(GuiItems.lore("Click to browse this category.", NamedTextColor.GREEN));
-            Component name = configured ? GuiItems.mini(replace(icon.name(), category, amount)) : GuiItems.name(category.name(), NamedTextColor.GOLD);
-            meta.displayName(name);
+            meta.displayName(CategoryNames.item(plugin, category, amount));
             meta.lore(lore);
             meta.getPersistentDataContainer().remove(HeadItemIds.key(plugin));
             meta.getPersistentDataContainer().set(GuiButtonEditorMenu.iconKey(plugin), PersistentDataType.STRING, iconKey);
@@ -442,11 +442,11 @@ public final class BrowseMenu {
     }
 
     private static @NotNull String categoryIconKey(@NotNull String categoryId) {
-        return "category." + categoryId.trim().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9_.-]", "_");
+        return CategoryNames.iconKey(categoryId);
     }
 
     private static @NotNull String replace(@NotNull String value, @NotNull HeadCategory category, int amount) {
-        return value.replace("%name%", category.name()).replace("%id%", category.id()).replace("%count%", String.valueOf(amount));
+        return CategoryNames.fill(value, category, amount);
     }
 
     private static @NotNull List<String> replaceAll(@NotNull List<String> values, @NotNull HeadCategory category, int amount) {

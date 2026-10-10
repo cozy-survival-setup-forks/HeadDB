@@ -1,5 +1,6 @@
 package io.github.silentdevelopment.headdb.paper.local;
 
+import io.github.silentdevelopment.headdb.core.database.DatabaseSnapshot;
 import io.github.silentdevelopment.headdb.core.database.DefaultHeadDatabase;
 import io.github.silentdevelopment.headdb.database.DatabaseStats;
 import io.github.silentdevelopment.headdb.database.DatabaseStatus;
@@ -33,6 +34,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 public final class HeadRegistry implements io.github.silentdevelopment.headdb.registry.HeadRegistry {
@@ -45,7 +47,8 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
     private final CustomTaxonomyService customCollectionService;
     private final HeadOverrideMerger merger;
     private final AtomicLong revision;
-    private volatile RegistrySnapshot snapshot;
+    private final ReentrantLock buildLock;
+    private volatile Built built;
 
     public HeadRegistry(@NotNull DefaultHeadDatabase remoteDatabase, @NotNull RemoteHeadOverrideStore overrideStore, @NotNull CustomHeadStore customHeadStore, @NotNull PlayerHeadService playerHeadService, @NotNull CustomTaxonomyService customTagService, @NotNull CustomTaxonomyService customCollectionService) {
         this.remoteDatabase = Objects.requireNonNull(remoteDatabase, "remoteDatabase");
@@ -56,6 +59,7 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
         this.customCollectionService = Objects.requireNonNull(customCollectionService, "customCollectionService");
         this.merger = new HeadOverrideMerger();
         this.revision = new AtomicLong();
+        this.buildLock = new ReentrantLock();
     }
 
     public @NotNull DatabaseStatus status() {
@@ -189,10 +193,11 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
 
     public void onLocalMutation() {
         invalidate();
+        // the caller expects to see its own change straight away, so wait for the rebuild here
+        build(false);
     }
 
-    public synchronized void invalidate() {
-        snapshot = null;
+    public void invalidate() {
         revision.incrementAndGet();
     }
 
@@ -201,30 +206,53 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
     }
 
     public void warm() {
-        snapshot();
+        build(true);
     }
 
     private @NotNull RegistrySnapshot snapshot() {
-        RegistrySnapshot current = snapshot;
+        Built current = built;
 
-        if (current != null) {
-            return current;
+        if (current != null && current.valid(revision.get(), remoteDatabase.currentSnapshot())) {
+            return current.snapshot();
         }
 
-        synchronized (this) {
-            current = snapshot;
+        return build(true);
+    }
 
-            if (current != null) {
-                return current;
+    /**
+     * Rebuilds when the cached copy is out of date. The previous copy stays in place until the new one is ready, so a
+     * reader never sees a missing registry; with {@code allowStale} a reader that finds a rebuild already running on
+     * another thread takes the previous copy instead of stalling the server thread behind it.
+     */
+    private @NotNull RegistrySnapshot build(boolean allowStale) {
+        Built previous = built;
+
+        if (previous != null && allowStale) {
+            if (!buildLock.tryLock()) {
+                return previous.snapshot();
+            }
+        } else {
+            buildLock.lock();
+        }
+
+        try {
+            long wanted = revision.get();
+            DatabaseSnapshot remote = remoteDatabase.currentSnapshot();
+            Built current = built;
+
+            if (current != null && current.valid(wanted, remote)) {
+                return current.snapshot();
             }
 
-            RegistrySnapshot created = createSnapshot();
-            snapshot = created;
-            return created;
+            Built created = new Built(createSnapshot(remote), wanted, remote);
+            built = created;
+            return created.snapshot();
+        } finally {
+            buildLock.unlock();
         }
     }
 
-    private @NotNull RegistrySnapshot createSnapshot() {
+    private @NotNull RegistrySnapshot createSnapshot(DatabaseSnapshot remote) {
         List<StoredCustomHead> storedCustomHeads = List.copyOf(customHeadStore.listStored());
         List<Head> customHeads = storedCustomHeads.stream().filter(head -> !head.draft()).map(StoredCustomHead::toHead).toList();
         List<RemoteHeadOverride> overrides = List.copyOf(overrideStore.list());
@@ -246,9 +274,9 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
             loreById.put(head.headId(), head.lore());
         }
 
-        for (Head remote : remoteDatabase.heads()) {
-            RemoteHeadOverride override = overridesById.get(remote.id());
-            Head effective = override == null ? remote : merger.merge(remote, override);
+        for (Head remoteHead : remote == null ? List.<Head>of() : remote.heads()) {
+            RemoteHeadOverride override = overridesById.get(remoteHead.id());
+            Head effective = override == null ? remoteHead : merger.merge(remoteHead, override);
             boolean hidden = override != null && Boolean.TRUE.equals(override.hidden());
 
             headsById.put(effective.id(), effective);
@@ -269,9 +297,9 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
         heads.addAll(customHeads);
         headsIncludingHidden.addAll(customHeads);
 
-        List<HeadCategory> categories = categories(customHeads, overrides);
-        List<HeadTag> tags = tags(customHeads, overrides);
-        List<HeadCollection> collections = collections(customHeads);
+        List<HeadCategory> categories = categories(remote == null ? List.of() : remote.categories(), customHeads, overrides);
+        List<HeadTag> tags = tags(remote == null ? List.of() : remote.tags(), customHeads, overrides);
+        List<HeadCollection> collections = collections(remote == null ? List.of() : remote.collections(), customHeads);
         return new RegistrySnapshot(
                 heads,
                 headsIncludingHidden,
@@ -298,9 +326,9 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
         return Map.copyOf(counts);
     }
 
-    private @NotNull List<HeadCategory> categories(@NotNull List<Head> customHeads, @NotNull List<RemoteHeadOverride> overrides) {
+    private @NotNull List<HeadCategory> categories(@NotNull List<HeadCategory> remote, @NotNull List<Head> customHeads, @NotNull List<RemoteHeadOverride> overrides) {
         Map<String, HeadCategory> remoteCategories = new LinkedHashMap<>();
-        for (HeadCategory category : remoteDatabase.categories()) {
+        for (HeadCategory category : remote) {
             remoteCategories.put(category.id(), category);
         }
 
@@ -322,9 +350,9 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
         return List.copyOf(categories);
     }
 
-    private @NotNull List<HeadTag> tags(@NotNull List<Head> customHeads, @NotNull List<RemoteHeadOverride> overrides) {
+    private @NotNull List<HeadTag> tags(@NotNull List<HeadTag> remote, @NotNull List<Head> customHeads, @NotNull List<RemoteHeadOverride> overrides) {
         Map<String, HeadTag> tags = new LinkedHashMap<>();
-        for (HeadTag tag : remoteDatabase.tags()) {
+        for (HeadTag tag : remote) {
             tags.put(tag.id(), tag);
         }
         for (Head head : customHeads) {
@@ -348,9 +376,9 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
         return tags.values().stream().sorted(Comparator.comparing(HeadTag::id)).toList();
     }
 
-    private @NotNull List<HeadCollection> collections(@NotNull List<Head> customHeads) {
+    private @NotNull List<HeadCollection> collections(@NotNull List<HeadCollection> remote, @NotNull List<Head> customHeads) {
         Map<String, HeadCollection> collections = new LinkedHashMap<>();
-        for (HeadCollection collection : remoteDatabase.collections()) {
+        for (HeadCollection collection : remote) {
             collections.put(collection.id(), collection);
         }
         for (Head head : customHeads) {
@@ -515,6 +543,14 @@ public final class HeadRegistry implements io.github.silentdevelopment.headdb.re
             if (!Character.isDigit(value.charAt(index))) return false;
         }
         return true;
+    }
+
+    private record Built(@NotNull RegistrySnapshot snapshot, long revision, DatabaseSnapshot source) {
+
+        // the source is compared by identity: a new load always produces a new object
+        private boolean valid(long currentRevision, DatabaseSnapshot currentSource) {
+            return revision == currentRevision && source == currentSource;
+        }
     }
 
     private record RegistrySnapshot(
