@@ -1,9 +1,10 @@
 # HeadDB (cozy fork)
 
-A fork of [SilentDevelopment/HeadDB](https://github.com/SilentDevelopment/HeadDB) at 7.0.0-rc.7, same license. Everything not listed here works as upstream. The jar is `HeadDB-7.0.0-rc.7-cozy.N.jar` on the [releases page](https://github.com/cozy-survival-setup-forks/HeadDB/releases).
+A fork of [SilentDevelopment/HeadDB](https://github.com/SilentDevelopment/HeadDB) at 7.0.0-rc.7, same license. Everything not listed here works as upstream. The jar is `HeadDB-7.0.0-rc.7-cozy.N.jar` on the [releases page](https://github.com/cozy-survival-setup-forks/HeadDB/releases). It runs on Paper 1.21.11 and newer (upstream needs Paper 26.1.2) and needs Java 25.
 
 What is different:
 
+- **Runs on Paper 1.21.11.** Built against the 1.21.11 API, the platform check accepts 1.21.11 and newer (including 26.x), `api-version` is 1.21.11.
 - **Menus are never left empty.** Every item of a page is built before the inventory is touched, so one button that fails to render no longer wipes the whole menu. A button that fails shows a barrier item and one warning is logged. The head registry keeps serving the previous copy while a new one is built, instead of blocking the server thread or handing out nothing, and it is built from one consistent catalog load.
 - **Category names are used everywhere.** The name set in `gui.yml` (`icons.category.<id>.name`, or the shared `icons.category.name` with `%name%`) is used on the button, in the menu titles, in the search title of a category and in chat labels. Before, the editor copied `<gold>Category` onto every category it touched and those categories were shown as "Category"; existing files are repaired on load. `%name%`, `%id%` and `%count%` are escaped, so a name is never read as MiniMessage.
 - **`&` codes next to MiniMessage** in `gui.yml` names, lore and titles (`&6Animals`, `&#ff8800Animals`, `<gradient:...>`). Menu titles are red unless the text sets a colour.

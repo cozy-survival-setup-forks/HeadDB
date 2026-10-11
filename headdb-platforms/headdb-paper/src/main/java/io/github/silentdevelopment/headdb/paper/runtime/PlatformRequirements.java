@@ -10,8 +10,7 @@ import java.util.regex.Pattern;
 public final class PlatformRequirements {
 
     public static final int REQUIRED_JAVA_FEATURE = 25;
-    public static final int REQUIRED_PAPER_MAJOR = 26;
-    public static final String REQUIRED_PAPER_VERSION = "26.1.2+";
+    public static final String REQUIRED_PAPER_VERSION = "1.21.11+";
 
     private static final Pattern VERSION_TOKEN = Pattern.compile("(?<!\\d)(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?!\\d)");
 
@@ -54,7 +53,7 @@ public final class PlatformRequirements {
 
         if (!compatibility.paperSupported()) {
             plugin.getSLF4JLogger().error(
-                    "Unsupported Paper runtime. Older Paper builds cannot safely load HeadDB's Java 25 runtime. Update to Paper {}.",
+                    "Unsupported Paper runtime. This build is made for Paper {}.",
                     REQUIRED_PAPER_VERSION
             );
         }
@@ -71,7 +70,7 @@ public final class PlatformRequirements {
         String bukkitVersion = value(plugin.getServer().getBukkitVersion());
 
         boolean javaSupported = javaFeature >= REQUIRED_JAVA_FEATURE;
-        boolean paperSupported = paper26OrNewer(serverVersion + " " + bukkitVersion);
+        boolean paperSupported = paperSupportedVersion(serverVersion + " " + bukkitVersion);
 
         return new Compatibility(
                 javaFeature,
@@ -83,13 +82,20 @@ public final class PlatformRequirements {
         );
     }
 
-    private static boolean paper26OrNewer(@NotNull String version) {
+    // 1.21.11 and newer: either 1.21.x with x >= 11, 1.22 and up, or the 26.x numbering
+    private static boolean paperSupportedVersion(@NotNull String version) {
         Matcher matcher = VERSION_TOKEN.matcher(version);
 
         while (matcher.find()) {
             int major = parseInt(matcher.group(1));
+            int minor = parseInt(matcher.group(2));
+            int patch = matcher.group(3) == null ? 0 : parseInt(matcher.group(3));
 
-            if (major >= REQUIRED_PAPER_MAJOR) {
+            if (major >= 26) {
+                return true;
+            }
+
+            if (major == 1 && (minor > 21 || (minor == 21 && patch >= 11))) {
                 return true;
             }
         }
